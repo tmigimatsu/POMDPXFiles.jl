@@ -245,7 +245,6 @@ end
 # output: None, writes the initial belief to the output file
 ############################################################################
 function belief_xml(pomdp::POMDP, pomdpx::POMDPXFile, out_file::IOStream)
-    belief = pomdpx.initial_belief
     var = pomdpx.state_name
     write(out_file, "\t<InitialStateBelief>\n")
     str = "\t\t<CondProb>\n"
@@ -253,12 +252,6 @@ function belief_xml(pomdp::POMDP, pomdpx::POMDPXFile, out_file::IOStream)
     str = "$(str)\t\t\t<Parent>null</Parent>\n"
     str = "$(str)\t\t\t<Parameter type = \"TBL\">\n"
 
-    #if isempty(belief)
-    #    str = "$(str)\t\t\t\t<Entry>\n"
-    #    str = "$(str)\t\t\t\t\t<Instance>-</Instance>\n"
-    #    str = "$(str)\t\t\t\t\t<ProbTable>uniform</ProbTable>\n"
-    #    str = "$(str)\t\t\t\t</Entry>\n"
-    #else
     d = initial_state_distribution(pomdp)
     for (i, s) in enumerate(ordered_states(pomdp))
         p = pdf(d, s)
@@ -286,27 +279,16 @@ function belief_xml(pomdp::POMDP, pomdpx::MOMDPXFile, out_file::IOStream)
         str = "$(str)\t\t\t<Parent>null</Parent>\n"
         str = "$(str)\t\t\t<Parameter type = \"TBL\">\n"
         if i == 1
-            str = "$(str)\t\t\t\t<Entry>\n"
-            str = "$(str)\t\t\t\t\t<Instance>s0</Instance>\n"
-            str = "$(str)\t\t\t\t\t<ProbTable>1</ProbTable>\n"
-            str = "$(str)\t\t\t\t</Entry>\n"
+            d = initial_fully_obs_distribution(pomdp)
         else
-            if isempty(initial_belief)
-                str = "$(str)\t\t\t\t<Entry>\n"
-                str = "$(str)\t\t\t\t\t<Instance>-</Instance>\n"
-                str = "$(str)\t\t\t\t\t<ProbTable>uniform</ProbTable>\n"
-                str = "$(str)\t\t\t\t</Entry>\n"
-            else
-                yspace = part_obs_space(pomdp)
-                ystates = iterator(yspace)
-                @assert length(collect(ystates)) == length(initial_belief)
-                for (j, b) in enumerate(initial_belief)
-                    str = "$(str)\t\t\t\t<Entry>\n"
-                    str = "$(str)\t\t\t\t\t<Instance>s$(j-1)</Instance>\n"
-                    str = "$(str)\t\t\t\t\t<ProbTable>$(b)</ProbTable>\n"
-                    str = "$(str)\t\t\t\t</Entry>\n"
-                end
-            end
+            d = initial_part_obs_distribution(pomdp)
+        end
+        for (s, p) in d
+            k = state_index(pomdp, s)
+            str = "$(str)\t\t\t\t<Entry>\n"
+            str = "$(str)\t\t\t\t\t<Instance>s$(k-1)</Instance>\n"
+            str = "$(str)\t\t\t\t\t<ProbTable>$(p)</ProbTable>\n"
+            str = "$(str)\t\t\t\t</Entry>\n"
         end
         str = "$(str)\t\t\t</Parameter>\n"
         str = "$(str)\t\t</CondProb>\n"
@@ -324,8 +306,6 @@ end
 # output: None, writes the transition probability table to the output file
 ############################################################################
 function trans_xml(pomdp::POMDP, pomdpx::MOMDPXFile, out_file::IOStream)
-    xt = create_fully_obs_transition(pomdp)
-    yt = create_partially_obs_transition(pomdp)
     xspace = fully_obs_space(pomdp)
     yspace = part_obs_space(pomdp)
     xstates = iterator(xspace)
@@ -336,11 +316,10 @@ function trans_xml(pomdp::POMDP, pomdpx::MOMDPXFile, out_file::IOStream)
     var1 = pomdpx.full_state_name
     var2 = pomdpx.part_state_name
     vars = [var1, var2]
-    dists = [xt, yt]
     spaces = [xstates, ystates]
 
     write(out_file, "\t<StateTransitionFunction>\n")
-    for (var, d, space)  in zip(vars, dists, spaces)
+    for (idx_var, var, space) in zip([1, 2], vars, spaces)
         str = "\t\t<CondProb>\n"
         str = "$(str)\t\t\t<Var>$(var)1</Var>\n"
         str = "$(str)\t\t\t<Parent>$(aname) $(var1)0 $(var2)0</Parent>\n"
@@ -350,9 +329,10 @@ function trans_xml(pomdp::POMDP, pomdpx::MOMDPXFile, out_file::IOStream)
             for (j, y) in enumerate(ystates)
                 for (ai, a) in enumerate(acts)
                     d = transition(pomdp, x, y, a)
-                    for (k, sp) in enumerate(space)
-                        p = pdf(d, sp)
+                    for (sp, p) in d
                         if p > 0.0
+                            idx = state_index(pomdp, sp)
+                            k = idx[idx_var]
                             str = "\t\t\t\t<Entry>\n"
                             str = "$(str)\t\t\t\t\t<Instance>a$(ai-1) s$(i-1) s$(j-1) s$(k-1)</Instance>\n"
                             str = "$(str)\t\t\t\t\t<ProbTable>$(p)</ProbTable>\n"
@@ -443,7 +423,6 @@ function obs_xml(pomdp::POMDP, pomdpx::MOMDPXFile, out_file::IOStream)
                 for (k, o) in enumerate(obs)
                     p = pdf(d, o)
                     if p > 0.0
-                        idx = index(d, o)
                         str = "\t\t\t\t<Entry>\n"
                         str = "$(str)\t\t\t\t\t<Instance>a$(ai-1) s$(i-1) s$(j-1) o$(k-1)</Instance>\n"
                         str = "$(str)\t\t\t\t\t<ProbTable>$(p)</ProbTable>\n"

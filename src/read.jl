@@ -25,9 +25,9 @@ function read_momdp(filename::String)
 
     # Determine expected number of vectors and their length
     alphavector_tag = get_elements_by_tagname(policy_tag, "AlphaVector")[1]     #length of 1 anyway
-    num_vectors = int(attribute(alphavector_tag, "numVectors"))
-    vector_length = int(attribute(alphavector_tag, "vectorLength"))
-    num_full_obs_states = int(attribute(alphavector_tag, "numObsValue"))
+    num_vectors = parse(Int64, attribute(alphavector_tag, "numVectors"))
+    vector_length = parse(Int64, attribute(alphavector_tag, "vectorLength"))
+    num_full_obs_states = parse(Int64, attribute(alphavector_tag, "numObsValue"))
 
     # For debugging purposes...
     #println("AlphaVector tag: # vectors, vector length: $(num_vectors), $(vector_length)")
@@ -62,7 +62,7 @@ function read_momdp(filename::String)
     end
 
     # Return alpha vectors and indices of actions
-    return alpha_vectors, int(alpha_actions), int(observable_states)
+    return alpha_vectors, [parse(Int64,s) for s in alpha_actions], [parse(Int64,s) for s in observable_states]
 end
 
 
